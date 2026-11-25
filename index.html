@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mathe-Training – Live-Rangliste (Prototyp)</title>
+<style>
+  :root {
+    --bg: #f4f6fa; --card: #ffffff; --ink: #1d2433; --muted: #6b7489;
+    --accent: #2f6fde; --ok: #1f9d55; --bad: #d64545; --line: #e2e6ee;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--ink); -webkit-text-size-adjust: 100%; }
+  header { padding: 14px 20px; background: var(--card); border-bottom: 1px solid var(--line);
+           display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 1.15rem; margin: 0; }
+  .pill { font-size: .85rem; padding: 4px 10px; border-radius: 999px; background: #eef2fb; color: var(--muted); }
+  .pill.live { background: #e3f6eb; color: var(--ok); }
+  .pill.off { background: #fdeaea; color: var(--bad); }
+  main { max-width: 1100px; margin: 0 auto; padding: 20px; display: grid; gap: 20px;
+         grid-template-columns: 1fr 340px; }
+  @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  h2 { font-size: 1rem; margin: 0 0 12px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  label { display: block; font-weight: 600; margin-bottom: 6px; }
+  input[type=text] { width: 100%; font-size: 1.2rem; padding: 12px 14px; border: 2px solid var(--line);
+                     border-radius: 10px; outline: none; }
+  input[type=text]:focus { border-color: var(--accent); }
+  button { font-size: 1.1rem; padding: 12px 20px; border: 0; border-radius: 10px; background: var(--accent);
+           color: #fff; font-weight: 600; cursor: pointer; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.secondary { background: #eef2fb; color: var(--ink); }
+  .row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+  .task { font-size: 2.4rem; font-weight: 700; text-align: center; margin: 24px 0; }
+  .feedback { min-height: 1.6em; text-align: center; font-weight: 600; font-size: 1.1rem; }
+  .feedback.ok { color: var(--ok); } .feedback.bad { color: var(--bad); }
+  .stats { display: flex; justify-content: space-around; text-align: center; margin-top: 18px; }
+  .stats div b { display: block; font-size: 1.8rem; }
+  .stats div span { color: var(--muted); font-size: .9rem; }
+  ol.board { list-style: none; margin: 0; padding: 0; }
+  ol.board li { display: flex; align-items: center; gap: 10px; padding: 9px 6px; border-bottom: 1px solid var(--line); }
+  ol.board li:last-child { border-bottom: 0; }
+  ol.board .rank { width: 2em; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  ol.board .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  ol.board .pts { font-weight: 700; font-variant-numeric: tabular-nums; }
+  ol.board li.me { background: #eef4ff; border-radius: 8px; }
+  ol.board li.flash { animation: flash 1s ease; }
+  @keyframes flash { from { background: #fff4c2; } to { background: transparent; } }
+  .hint { color: var(--muted); font-size: .9rem; margin-top: 10px; }
+  .hidden { display: none !important; }
+  .banner { background: #fff4d6; border: 1px solid #f0d78a; padding: 10px 14px; border-radius: 10px; margin-bottom: 14px; font-size: .95rem; }
+  /* Lehrer-/Beamer-Ansicht */
+  body.beamer main { grid-template-columns: 1fr; max-width: 900px; }
+  body.beamer #play-area { display: none; }
+  body.beamer ol.board li { font-size: 1.6rem; padding: 14px 8px; }
+  body.beamer #board-card h2 { font-size: 1.3rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Mathe-Training <span id="room-label" class="pill"></span></h1>
+  <span id="status" class="pill">verbinde …</span>
+</header>
+
+<main>
+  <section id="play-area">
+    <div id="demo-banner" class="banner hidden">
+      <b>Demo-Modus:</b> Es ist noch keine Firebase-Konfiguration eingetragen. Die Rangliste ist deshalb nur lokal auf diesem Gerät.
+    </div>
+
+    <!-- Schritt 1: Spitzname -->
+    <div id="join-card" class="card">
+      <h2>Mitmachen</h2>
+      <label for="nick">Spitzname</label>
+      <input id="nick" type="text" maxlength="20" autocomplete="off" autocapitalize="words" placeholder="z. B. Mathe-Fuchs">
+      <p class="hint">Bitte keinen echten Namen verwenden.</p>
+      <div class="row"><button id="join-btn">Los geht's</button></div>
+    </div>
+
+    <!-- Schritt 2: Üben -->
+    <div id="quiz-card" class="card hidden">
+      <h2>Aufgabe <span class="hint" style="text-transform:none">(Platzhalter-Aufgaben für den Techniktest)</span></h2>
+      <div id="task" class="task"></div>
+      <input id="answer" type="text" inputmode="decimal" autocomplete="off" placeholder="Deine Antwort">
+      <div class="row">
+        <button id="check-btn">Prüfen</button>
+        <button id="skip-btn" class="secondary">Überspringen</button>
+      </div>
+      <div id="feedback" class="feedback"></div>
+      <div class="stats">
+        <div><b id="score">0</b><span>Punkte</span></div>
+        <div><b id="streak">0</b><span>Serie</span></div>
+        <div><b id="solved">0</b><span>richtig</span></div>
+      </div>
+    </div>
+  </section>
+
+  <aside id="board-card" class="card">
+    <h2>Live-Rangliste</h2>
+    <ol id="board" class="board"></ol>
+    <p id="board-empty" class="hint">Noch keine Einträge.</p>
+  </aside>
+</main>
+
+<script type="module">
+/* =====================================================================
+   1) KONFIGURATION – hier die Werte aus der Firebase-Konsole einfügen
+      (Projekteinstellungen → Allgemein → Meine Apps → Web-App → Konfiguration)
+   ===================================================================== */
+const firebaseConfig = {
+   apiKey: "AIzaSyD9hCSeM4spqWXj8Cf4B9mIU_sSDNiVzwc",
+
+  authDomain: "uebung-klasse-9.firebaseapp.com",
+
+  databaseURL: "https://uebung-klasse-9-default-rtdb.europe-west1.firebasedatabase.app",
+
+  projectId: "uebung-klasse-9",
+
+  storageBucket: "uebung-klasse-9.firebasestorage.app",
+
+  messagingSenderId: "114736762965",
+
+  appId: "1:114736762965:web:ffcb1a14ce5a2c0d2084dc"
+
+};
+
+/* Punkteregeln (später anpassbar) */
+const POINTS_CORRECT = 10;      // pro richtiger Antwort
+const STREAK_BONUS   = 5;       // zusätzlich ab 3 richtigen in Folge
+const MAX_NAME_LEN   = 20;
+
+/* =====================================================================
+   2) RAUM / ANSICHT aus der Adresse lesen
+      ?raum=10b        → eigene Rangliste pro Klasse/Runde
+      ?beamer=1        → nur große Rangliste (für den Beamer)
+   ===================================================================== */
+const params = new URLSearchParams(location.search);
+const room = (params.get("raum") || "standard").toLowerCase().replace(/[^a-z0-9_-]/g, "").slice(0, 30) || "standard";
+const beamer = params.get("beamer") === "1";
+if (beamer) document.body.classList.add("beamer");
+document.getElementById("room-label").textContent = "Raum: " + room;
+
+const $ = id => document.getElementById(id);
+const statusEl = $("status");
+function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = "pill " + (cls || ""); }
+
+/* =====================================================================
+   3) SPEICHER-SCHICHT: Firebase (live) oder lokal (Demo)
+   ===================================================================== */
+const configured = firebaseConfig.apiKey && firebaseConfig.databaseURL;
+let backend;
+
+if (configured) {
+  try {
+    const V = "10.12.2";
+    const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+    const { getAuth, signInAnonymously, onAuthStateChanged } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+    const { getDatabase, ref, set, get, onValue, query, orderByChild, limitToLast, serverTimestamp } =
+      await import(`https://www.gstatic.com/firebasejs/${V}/firebase-database.js`);
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getDatabase(app);
+
+    // Anonyme Anmeldung: unsichtbar für die Schüler, gibt jedem Gerät eine feste ID.
+    const uid = await new Promise((resolve, reject) => {
+      const stop = onAuthStateChanged(auth, user => {
+        if (user) { stop(); resolve(user.uid); }
+      });
+      signInAnonymously(auth).catch(reject);
+    });
+
+    const scoresPath = `rooms/${room}/scores`;
+    backend = {
+      uid,
+      async load() {
+        // Bisherigen Punktestand dieses Geräts holen (z. B. nach Neuladen der Seite)
+        const snap = await get(ref(db, `${scoresPath}/${uid}`));
+        return snap.exists() ? snap.val() : null;
+      },
+      save(name, score) {
+        return set(ref(db, `${scoresPath}/${uid}`), { name, score, updated: serverTimestamp() });
+      },
+      subscribe(cb) {
+        const q = query(ref(db, scoresPath), orderByChild("score"), limitToLast(30));
+        onValue(q, snap => {
+          const rows = [];
+          snap.forEach(child => { rows.push({ id: child.key, ...child.val() }); });
+          cb(rows);
+        }, err => setStatus("Fehler: " + err.code, "off"));
+        onValue(ref(db, ".info/connected"), s => s.val() ? setStatus("live verbunden", "live") : setStatus("Verbindung unterbrochen", "off"));
+      }
+    };
+  } catch (e) {
+    console.error(e);
+    setStatus("Firebase-Fehler – siehe Konsole", "off");
+    backend = null;
+  }
+}
+
+if (!backend) {
+  // Demo-Modus ohne Server
+  $("demo-banner").classList.remove("hidden");
+  if (!configured) setStatus("Demo-Modus (lokal)", "");
+  const rows = new Map();
+  let listener = () => {};
+  backend = {
+    uid: "local",
+    async load() { return rows.get("local") || null; },
+    save(name, score) { rows.set("local", { id: "local", name, score }); listener([...rows.values()]); return Promise.resolve(); },
+    subscribe(cb) { listener = cb; cb([...rows.values()]); }
+  };
+}
+
+/* =====================================================================
+   4) RANGLISTE anzeigen (Namen immer per textContent → sicher)
+   ===================================================================== */
+const prevScores = new Map();
+backend.subscribe(rows => {
+  rows.sort((a, b) => (b.score - a.score) || String(a.name).localeCompare(String(b.name)));
+  const board = $("board");
+  board.replaceChildren();
+  rows.forEach((r, i) => {
+    const li = document.createElement("li");
+    if (r.id === backend.uid) li.classList.add("me");
+    if (prevScores.has(r.id) && prevScores.get(r.id) !== r.score) li.classList.add("flash");
+    prevScores.set(r.id, r.score);
+    const rank = document.createElement("span"); rank.className = "rank"; rank.textContent = (i + 1) + ".";
+    const name = document.createElement("span"); name.className = "name"; name.textContent = String(r.name ?? "?");
+    const pts  = document.createElement("span"); pts.className = "pts";  pts.textContent = Number(r.score) || 0;
+    li.append(rank, name, pts);
+    board.append(li);
+  });
+  $("board-empty").classList.toggle("hidden", rows.length > 0);
+});
+
+if (beamer) { /* Beamer-Ansicht: nur Rangliste */ }
+
+/* =====================================================================
+   5) ÜBEN – Platzhalter-Aufgaben (werden später durch echte Themen ersetzt)
+   ===================================================================== */
+let nick = "", score = 0, streak = 0, solved = 0, current = null;
+
+const savedNick = localStorage.getItem("mathe-nick-" + room);
+if (savedNick) $("nick").value = savedNick;
+
+function newTask() {
+  const a = 2 + Math.floor(Math.random() * 11);
+  const b = 2 + Math.floor(Math.random() * 11);
+  current = { text: `${a} · ${b} = ?`, solution: a * b };
+  $("task").textContent = current.text;
+  $("answer").value = "";
+  $("answer").focus();
+}
+
+function updateStats() {
+  $("score").textContent = score;
+  $("streak").textContent = streak;
+  $("solved").textContent = solved;
+}
+
+$("join-btn").addEventListener("click", async () => {
+  nick = $("nick").value.trim().replace(/\s+/g, " ").slice(0, MAX_NAME_LEN);
+  if (!nick) { $("nick").focus(); return; }
+  try { localStorage.setItem("mathe-nick-" + room, nick); } catch {}
+  $("join-btn").disabled = true;
+  try {
+    const existing = await backend.load();
+    if (existing && Number.isFinite(existing.score)) { score = existing.score; updateStats(); }
+    await backend.save(nick, score);
+    $("join-card").classList.add("hidden");
+    $("quiz-card").classList.remove("hidden");
+    newTask();
+  } catch (e) {
+    console.error(e);
+    alert("Speichern fehlgeschlagen: " + (e.code || e.message));
+  } finally {
+    $("join-btn").disabled = false;
+  }
+});
+$("nick").addEventListener("keydown", e => { if (e.key === "Enter") $("join-btn").click(); });
+
+function check() {
+  const raw = $("answer").value.trim().replace(",", ".");
+  if (raw === "") return;
+  const fb = $("feedback");
+  if (Number(raw) === current.solution) {
+    streak++; solved++;
+    const gain = POINTS_CORRECT + (streak >= 3 ? STREAK_BONUS : 0);
+    score += gain;
+    fb.textContent = `Richtig! +${gain}` + (streak >= 3 ? " (Serienbonus)" : "");
+    fb.className = "feedback ok";
+    backend.save(nick, score).catch(err => { console.error(err); setStatus("Speichern fehlgeschlagen", "off"); });
+    updateStats();
+    newTask();
+  } else {
+    streak = 0;
+    fb.textContent = "Leider falsch – versuch's nochmal.";
+    fb.className = "feedback bad";
+    updateStats();
+  }
+}
+$("check-btn").addEventListener("click", check);
+$("answer").addEventListener("keydown", e => { if (e.key === "Enter") check(); });
+$("skip-btn").addEventListener("click", () => {
+  streak = 0; updateStats();
+  $("feedback").textContent = `Lösung war ${current.solution}.`; $("feedback").className = "feedback";
+  newTask();
+});
+</script>
+</body>
+</html>
